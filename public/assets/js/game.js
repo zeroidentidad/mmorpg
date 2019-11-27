@@ -40,6 +40,9 @@ class WorldScene extends Phaser.Scene {
   create() {
     this.socket = io();
 
+    // creating other players
+    this.otherPlayers = this.physics.add.group();
+
     // create map
     this.createMap();
 
@@ -66,6 +69,15 @@ class WorldScene extends Phaser.Scene {
     this.socket.on('newPlayer', function (playerInfo) {
       this.addOtherPlayers(playerInfo);
     }.bind(this));
+
+    this.socket.on('disconnect', function (playerId) {
+      this.otherPlayers.getChildren().forEach(function (player) {
+        if (playerId === player.playerId) {
+          player.destroy();
+        }
+      }.bind(this));
+    }.bind(this));    
+
   }
 
   createMap() {
@@ -140,6 +152,9 @@ class WorldScene extends Phaser.Scene {
 
     // don't go out of the map
     this.container.body.setCollideWorldBounds(true);
+
+    this.physics.add.collider(this.container, this.spawns);
+
   }
 
   addOtherPlayers(playerInfo) {
@@ -159,16 +174,15 @@ class WorldScene extends Phaser.Scene {
   createEnemies() {
     // where the enemies will be
     this.spawns = this.physics.add.group({
-      classType: Phaser.GameObjects.Zone
+      classType: Phaser.GameObjects.Sprite
     });
-    for (var i = 0; i < 30; i++) {
-      var x = Phaser.Math.RND.between(0, this.physics.world.bounds.width);
-      var y = Phaser.Math.RND.between(0, this.physics.world.bounds.height);
+    for (var i = 0; i < 20; i++) {
+      const location = this.getValidLocation();
       // parameters are x, y, width, height
-      this.spawns.create(x, y, 20, 20);
+      var enemy = this.spawns.create(location.x, location.y, this.getEnemySprite());
+      enemy.body.setCollideWorldBounds(true);
+      enemy.body.setImmovable();
     }
-    // add collider
-    //this.physics.add.overlap(this.player, this.spawns, this.onMeetEnemy, false, this);
   }
 
   getEnemySprite() {
