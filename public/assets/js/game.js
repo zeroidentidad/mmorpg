@@ -37,122 +37,139 @@ class WorldScene extends Phaser.Scene {
     });
   }
 
-create() {
-  this.socket = io();
- 
-  // create map
-  this.createMap();
- 
-  // create player animations
-  this.createAnimations();
- 
-  // create player
-  this.createPlayer();
- 
-  // update camera
-  this.updateCamera();
- 
-  // user input
-  this.cursors = this.input.keyboard.createCursorKeys();
- 
-  // create enemies
-  this.createEnemies();
-}
+  create() {
+    this.socket = io();
 
-createMap() {
-  // create the map
-  this.map = this.make.tilemap({
-    key: 'map'
-  });
- 
-  // first parameter is the name of the tilemap in tiled
-  var tiles = this.map.addTilesetImage('spritesheet', 'tiles', 16, 16, 1, 2);
- 
-  // creating the layers
-  this.map.createStaticLayer('Grass', tiles, 0, 0);
-  this.map.createStaticLayer('Obstacles', tiles, 0, 0);
- 
-  // don't go out of the map
-  this.physics.world.bounds.width = this.map.widthInPixels;
-  this.physics.world.bounds.height = this.map.heightInPixels;
-}
+    // create map
+    this.createMap();
 
-createAnimations() {
-  //  animation with key 'left', we don't need left and right as we will use one and flip the sprite
-  this.anims.create({
-    key: 'left',
-    frames: this.anims.generateFrameNumbers('player', {
-      frames: [1, 7, 1, 13]
-    }),
-    frameRate: 10,
-    repeat: -1
-  });
- 
-  // animation with key 'right'
-  this.anims.create({
-    key: 'right',
-    frames: this.anims.generateFrameNumbers('player', {
-      frames: [1, 7, 1, 13]
-    }),
-    frameRate: 10,
-    repeat: -1
-  });
- 
-  this.anims.create({
-    key: 'up',
-    frames: this.anims.generateFrameNumbers('player', {
-      frames: [2, 8, 2, 14]
-    }),
-    frameRate: 10,
-    repeat: -1
-  });
- 
-  this.anims.create({
-    key: 'down',
-    frames: this.anims.generateFrameNumbers('player', {
-      frames: [0, 6, 0, 12]
-    }),
-    frameRate: 10,
-    repeat: -1
-  });
-}
+    // create player animations
+    this.createAnimations();
 
-createPlayer() {
-  // our player sprite created through the phycis system
-  this.player = this.physics.add.sprite(50, 100, 'player', 6);
- 
-  // don't go out of the map
-  this.player.setCollideWorldBounds(true);
-}
+    // user input
+    this.cursors = this.input.keyboard.createCursorKeys();
+
+    // create enemies
+    this.createEnemies();
+
+    // listen for web socket events
+    this.socket.on('currentPlayers', function (players) {
+      Object.keys(players).forEach(function (id) {
+        if (players[id].playerId === this.socket.id) {
+          this.createPlayer(players[id]);
+        } else {
+          this.addOtherPlayers(players[id]);
+        }
+      }.bind(this));
+    }.bind(this));
+
+    this.socket.on('newPlayer', function (playerInfo) {
+      this.addOtherPlayers(playerInfo);
+    }.bind(this));
+  }
+
+  createMap() {
+    // create the map
+    this.map = this.make.tilemap({
+      key: 'map'
+    });
+
+    // first parameter is the name of the tilemap in tiled
+    var tiles = this.map.addTilesetImage('spritesheet', 'tiles', 16, 16, 1, 2);
+
+    // creating the layers
+    this.map.createStaticLayer('Grass', tiles, 0, 0);
+    this.map.createStaticLayer('Obstacles', tiles, 0, 0);
+
+    // don't go out of the map
+    this.physics.world.bounds.width = this.map.widthInPixels;
+    this.physics.world.bounds.height = this.map.heightInPixels;
+  }
+
+  createAnimations() {
+    //  animation with key 'left', we don't need left and right as we will use one and flip the sprite
+    this.anims.create({
+      key: 'left',
+      frames: this.anims.generateFrameNumbers('player', {
+        frames: [1, 7, 1, 13]
+      }),
+      frameRate: 10,
+      repeat: -1
+    });
+
+    // animation with key 'right'
+    this.anims.create({
+      key: 'right',
+      frames: this.anims.generateFrameNumbers('player', {
+        frames: [1, 7, 1, 13]
+      }),
+      frameRate: 10,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'up',
+      frames: this.anims.generateFrameNumbers('player', {
+        frames: [2, 8, 2, 14]
+      }),
+      frameRate: 10,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'down',
+      frames: this.anims.generateFrameNumbers('player', {
+        frames: [0, 6, 0, 12]
+      }),
+      frameRate: 10,
+      repeat: -1
+    });
+  }
+
+  createPlayer(playerInfo) {
+    // our player sprite created through the physics system
+    this.player = this.add.sprite(0, 0, 'player', 6);
+
+    this.container = this.add.container(playerInfo.x, playerInfo.y);
+    this.container.setSize(16, 16);
+    this.physics.world.enable(this.container);
+    this.container.add(this.player);
+
+    // update camera
+    this.updateCamera();
+
+    // don't go out of the map
+    this.container.body.setCollideWorldBounds(true);
+  }
 
   addOtherPlayers(playerInfo) {
     const otherPlayer = this.add.sprite(playerInfo.x, playerInfo.y, 'player', 9);
     otherPlayer.setTint(Math.random() * 0xffffff);
     otherPlayer.playerId = playerInfo.playerId;
     this.otherPlayers.add(otherPlayer);
+  }  
+
+  updateCamera() {
+    // limit camera to map
+    this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    this.cameras.main.startFollow(this.container);
+    this.cameras.main.roundPixels = true; // avoid tile bleed
   }
 
-updateCamera() {
-  // limit camera to map
-  this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
-  this.cameras.main.startFollow(this.player);
-  this.cameras.main.roundPixels = true; // avoid tile bleed
-}
-
-createEnemies() {
-  // where the enemies will be
-  this.spawns = this.physics.add.group({
-    classType: Phaser.GameObjects.Zone
-  });
-  for (var i = 0; i < 30; i++) {
-    var x = Phaser.Math.RND.between(0, this.physics.world.bounds.width);
-    var y = Phaser.Math.RND.between(0, this.physics.world.bounds.height);
-    // parameters are x, y, width, height
-    this.spawns.create(x, y, 20, 20);
+  createEnemies() {
+    // where the enemies will be
+    this.spawns = this.physics.add.group({
+      classType: Phaser.GameObjects.Zone
+    });
+    for (var i = 0; i < 30; i++) {
+      var x = Phaser.Math.RND.between(0, this.physics.world.bounds.width);
+      var y = Phaser.Math.RND.between(0, this.physics.world.bounds.height);
+      // parameters are x, y, width, height
+      this.spawns.create(x, y, 20, 20);
+    }
+    // add collider
+    //this.physics.add.overlap(this.player, this.spawns, this.onMeetEnemy, false, this);
   }
-  // add collider
-  this.physics.add.overlap(this.player, this.spawns, this.onMeetEnemy, false, this);
-}
 
   getEnemySprite() {
     var sprites = ['golem', 'ent', 'demon', 'worm', 'wolf'];
